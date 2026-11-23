@@ -5,6 +5,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `DevLab_SCD4x` class: SCD4x driver built on `DevLab_I2C_Interface::writeRaw()/readRaw()` (DevLab_Interface >= 1.3.0), including `getSerialNumberRaw()` and `printSerialNumberRaw()` to read the serial number frame with its CRCs.
+- Examples `exampleUsage`, `exampleScd41SingleShot` and `exampleSerialNumberRaw`, with the I2C pins selected per architecture (RP2040/RP2350, ESP32, STM32, AVR).
+
+### Removed
+
+- The Sensirion driver `SensirionI2cScd4x` and the Sensirion Core dependency.
+- The RP2350-specific examples.
+
 ## [1.1.0] - 2025-7-1
 
 ### Fixed

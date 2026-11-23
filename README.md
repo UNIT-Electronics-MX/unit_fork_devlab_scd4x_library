@@ -1,51 +1,45 @@
-# Sensirion I²C SCD4X Arduino Library
+# DevLab SCD4x Arduino Library
 
-This is the Sensirion SCD4X library for Arduino allowing you to
-communicate with a sensor of the SCD4X family over I²C.
+Arduino library for the Sensirion SCD4x CO₂, temperature and relative humidity
+sensors over I²C. It is part of the DevLab ecosystem: all the bus handling is
+done inside the `DevLab_SCD4x` class on top of `DevLab_Interface`, so a sketch
+only creates the object, calls `begin()` and reads measurements.
 
 <img src="images/SCD4x.png" width="300px">
 
-Click [here](https://sensirion.com/products/catalog/SEK-SCD43) to learn more about the Sensirion SCD4X sensor family.
-
-
-Not all sensors of this driver family support all measurements.
-In case a measurement is not supported by all sensors, the products that
-support it are listed in the API description.
+Click [here](https://sensirion.com/products/catalog/SEK-SCD43) to learn more about the Sensirion SCD4x sensor family.
 
 
 ## Supported sensor types
 
-| Sensor name   | I²C Addresses  |
-| ------------- | -------------- |
-|[SCD40](https://sensirion.com/products/catalog/SCD40)| **0x62**|
-|[SCD41](https://sensirion.com/products/catalog/SCD41)| **0x62**|
-|[SCD42](https://sensirion.com/products/catalog/SCD42)| **0x62**|
-|[SCD43](https://sensirion.com/products/catalog/SCD43)| **0x62**|
+| Sensor name   | I²C Addresses  | Notes |
+| ------------- | -------------- | ----- |
+|[SCD40](https://sensirion.com/products/catalog/SCD40)| **0x62**| |
+|[SCD41](https://sensirion.com/products/catalog/SCD41)| **0x62**| Single-shot measurement and power down. Tested sensor |
+|[SCD42](https://sensirion.com/products/catalog/SCD42)| **0x62**| |
+|[SCD43](https://sensirion.com/products/catalog/SCD43)| **0x62**| Single-shot measurement and power down |
 
-The following instructions and examples use a *SCD43*.
+Single-shot measurement and power down are only available on the SCD41 and SCD43.
+The examples use an *SCD41*.
+
+## Supported platforms
+
+The examples select the I²C pins per architecture: RP2040/RP2350 (arduino-pico),
+ESP32, STM32 (STM32duino) and AVR.
 
 
 ## Installation of the library
 
-This library can be installed using the Arduino Library manager:
-Start the [Arduino IDE](http://www.arduino.cc/en/main/software) and open
-the Library Manager via
-
-`Sketch` ➔ `Include Library` ➔ `Manage Libraries...`
-
-Search for the `Sensirion I2C SCD4X` library in the `Filter
-your search...` field and install it by clicking the `install` button.
-
-If you cannot find it in the library manager, download the latest release as .zip file
-and add it to your [Arduino IDE](http://www.arduino.cc/en/main/software) via
+Download the latest release as a .zip file and add it to the
+[Arduino IDE](http://www.arduino.cc/en/main/software) via
 
 `Sketch` ➔ `Include Library` ➔ `Add .ZIP Library...`
 
-Don't forget to **install the dependencies** listed below the same way via library
-manager or `Add .ZIP Library`
+Install the dependency listed below the same way, or via the Library Manager.
 
 #### Dependencies
-* [Sensirion Core](https://github.com/Sensirion/arduino-core)
+* DevLab_Interface (>=1.3.0): provides the I²C transport, including the raw
+  `writeRaw()` / `readRaw()` transfers used by the SCD4x command protocol.
 
 ## Connect the sensor
 
@@ -163,19 +157,16 @@ You will find pinout schematics for recommended board models below:
 
 ## Quick Start
 
-1. Install the libraries and dependencies according to [Installation of the library](#installation-of-the-library)
+1. Install the library and its dependency according to [Installation of the library](#installation-of-the-library)
 
-2. Connect the SCD4X sensor to your Arduino as explained in [Connect the sensor](#connect-the-sensor)
+2. Connect the SCD4x sensor to your board as explained in [Connect the sensor](#connect-the-sensor)
 
 3. Open the `exampleUsage` sample project within the Arduino IDE:
 
-   `File` ➔ `Examples` ➔ `Sensirion I2C SCD4X` ➔ `exampleUsage`
+   `File` ➔ `Examples` ➔ `DevLab_SCD4x` ➔ `exampleUsage`
 
-
-   The provided example is working with a SCD43, I²C address 0x62.
-   In order to use the code with another product or I²C address you need to change it in the code of `examples/exampleUsage`.
-   You find the list with pre-defined addresses in `src/SensirionI2CSCD4X.h`.
-
+   The example selects the I²C pins according to the board architecture. Change
+   `I2C_SDA` / `I2C_SCL` at the top of the sketch if your board is wired differently.
 
 4. Click the `Upload` button in the Arduino IDE or `Sketch` ➔ `Upload`
 
@@ -183,11 +174,110 @@ You will find pinout schematics for recommended board models below:
    Plotter` via the `Tools` menu to observe the measurement values. Note that
    the `Baud Rate` in the used tool has to be set to `115200 baud`.
 
+## Examples
+
+| Example | Description |
+|---|---|
+| `exampleUsage` | Periodic measurement: prints CO₂, temperature and humidity every 5 s |
+| `exampleScd41SingleShot` | On-demand measurement with power down between samples (SCD41/SCD43) |
+| `exampleSerialNumberRaw` | Reads the serial number frame as sent by the sensor (9 bytes) and checks the CRC of each word |
+
+## Usage
+
+```cpp
+#include <DevLab_SCD4x.h>
+
+DevLab_SCD4x scd(Wire);                  // I2C address 0x62 by default
+
+void setup() {
+  Serial.begin(115200);
+  scd.begin(SDA_PIN, SCL_PIN);           // starts the periodic measurement (5 s)
+}
+
+void loop() {
+  DevLab_SCD4x::Measurement m;
+  if (scd.read(m))                       // waits for a new sample
+    Serial.printf("CO2=%u ppm  T=%.2f C  RH=%.2f %%\n", m.co2, m.temperatureC, m.humidity);
+}
+```
+
+`begin()` waits for the sensor power-up, brings it to idle (waking it up if it was
+powered down), verifies the serial number and starts the periodic measurement.
+Use `begin(sda, scl, clock, false)` to leave the sensor idle, which is required to
+change settings or to use single-shot mode. The I²C clock must not exceed 100 kHz.
+
+## API
+
+### Measurement
+
+| Method | Description |
+|---|---|
+| `startPeriodic()` / `stopPeriodic()` | Start the periodic measurement (new sample every 5 s) / stop it (500 ms) |
+| `startLowPowerPeriodic()` | Periodic measurement with a new sample every 30 s |
+| `dataReady(ready)` / `available()` | Whether a new sample is waiting |
+| `read(m, timeoutMs)` | Waits for a new sample and reads it |
+| `readMeasurement(m)` | Reads the sample immediately; fails if none is ready |
+| `measureSingleShot(m)` | SCD41/SCD43. On-demand measurement, blocks about 5 s |
+| `measureSingleShotRhtOnly(m)` | SCD41/SCD43. Temperature and humidity only (`m.co2` is 0), about 50 ms |
+
+`Measurement` holds `co2` [ppm], `temperatureC` [°C] and `humidity` [%RH].
+
+### Settings
+
+Settings are changed with the sensor idle, except `setAmbientPressure()`, which is also allowed while measuring.
+
+| Method | Description |
+|---|---|
+| `setTemperatureOffset(°C)` / `getTemperatureOffset()` | Temperature offset |
+| `setAltitude(m)` / `getAltitude()` | Sensor altitude |
+| `setAmbientPressure(Pa)` / `getAmbientPressure()` | Ambient pressure compensation |
+| `setAutoCalibration(on)` / `getAutoCalibration()` | Automatic self-calibration (ASC) |
+| `setAutoCalibrationTarget()` / `get…` | ASC target CO₂ concentration [ppm] |
+| `setAutoCalibrationInitialPeriod()` / `get…` | ASC initial period [h] |
+| `setAutoCalibrationStandardPeriod()` / `get…` | ASC standard period [h] |
+| `persistSettings()` | Stores the settings in the sensor EEPROM (800 ms, limited write cycles) |
+
+### Calibration and maintenance (sensor idle)
+
+| Method | Description |
+|---|---|
+| `performForcedRecalibration(ppm, correction)` | Forced recalibration against a reference concentration (400 ms) |
+| `performSelfTest(ok)` | Sensor self test (blocks 10 s) |
+| `performFactoryReset()` | Restores the factory settings (1.2 s) |
+| `reinit()` | Reloads the settings from the EEPROM (30 ms) |
+
+### Power (SCD41/SCD43)
+
+| Method | Description |
+|---|---|
+| `powerDown()` | Puts the sensor to sleep |
+| `wakeUp()` | Wakes it up (30 ms) |
+
+### Information and errors
+
+| Method | Description |
+|---|---|
+| `getSerialNumber(serial)` | 48-bit serial number: the three received words joined as `word0:word1:word2`. The CRC is checked |
+| `getSerialNumberRaw(raw, crcOk)` | The serial number response exactly as received: 9 bytes, three words each `[msb, lsb, crc]`. The CRC is not checked, `crcOk` reports it |
+| `printSerialNumberRaw(Print&)` | Prints the raw frame with the received and the calculated CRC-8 of each word |
+| `getVariant(variant)` | Sensor variant (SCD40/41/42/43) |
+| `isConnected()` / `busReady()` / `address()` / `variant()` | State of the object |
+| `printInfo(Print&)` | Prints the variant and the serial number |
+| `lastError()` / `errorString(e)` | Error of the last failed call |
+
+Every method returns `true` on success and `false` on failure. `lastError()` returns one of
+`Error::Write` (no ACK), `Error::Read` (no response or no data ready), `Error::Crc`,
+`Error::Timeout`, `Error::Argument`, `Error::NotConnected` and `Error::Failed`.
+
+While the periodic measurement is running, only `readMeasurement()`, `dataReady()`,
+`stopPeriodic()` and `setAmbientPressure()` are meant to be used. Other commands are
+not supported in that mode and may fail or behave unpredictably: call `stopPeriodic()` first.
+
 ## Contributing
 
 **Contributions are welcome!**
 
-This Sensirion library uses
+This library uses
 [`clang-format`](https://releases.llvm.org/download.html) to standardize the
 formatting of all our `.cpp` and `.h` files. Make sure your contributions are
 formatted accordingly:
